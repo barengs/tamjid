@@ -8,6 +8,7 @@ import 'providers/auth_provider.dart';
 import 'providers/student_provider.dart';
 import 'providers/registration_provider.dart';
 import 'providers/finance_provider.dart';
+import 'providers/kesantrian_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -30,6 +31,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => StudentProvider()),
         ChangeNotifierProvider(create: (_) => RegistrationProvider()),
         ChangeNotifierProvider(create: (_) => FinanceProvider()),
+        ChangeNotifierProvider(create: (_) => KesantrianProvider()),
       ],
       child: const MyApp(),
     ),
@@ -99,6 +101,7 @@ class _RootState extends State<_Root> {
         onLogout: () {
           context.read<StudentProvider>().reset();
           context.read<FinanceProvider>().reset();
+          context.read<KesantrianProvider>().reset();
           authProvider.logout();
         },
       );

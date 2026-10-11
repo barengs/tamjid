@@ -28,6 +28,12 @@ class ApiEndpoints {
       '$smpBase/api/main/student-violation/student/{id}';
   static const String smpStudentLeaves =
       '$smpBase/api/main/student-leave/student/{id}/report';
+  static const String smpLeaveTypes =
+      '$smpBase/api/main/leave-type';
+  static const String smpCreateLeave =
+      '$smpBase/api/main/student-leave';
+  static const String smpPresence =
+      '$smpBase/api/main/presence';
 
   // --- bank-santri (Port 8001) ---
   static const String bankBase = 'https://bank.tamjid.or.id';

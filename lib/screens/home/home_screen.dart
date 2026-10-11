@@ -9,6 +9,10 @@ import '../student/student_detail_screen.dart';
 import '../finance/summary_screen.dart';
 import '../finance/bills_screen.dart';
 import '../finance/topup_screen.dart';
+import '../kamtib/violation_screen.dart';
+import '../kamtib/leave_screen.dart';
+import '../academic/hostel_screen.dart';
+import '../academic/report_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AuthProvider authProvider;
@@ -280,7 +284,56 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppTheme.rose500,
                       label: 'Pelanggaran',
                       subtitle: 'Riwayat kamtib',
-                      onTap: () => _showComingSoon(context, 'Pelanggaran'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ViolationScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _MenuCard(
+                      icon: Icons.assignment_outlined,
+                      color: AppTheme.indigo500,
+                      label: 'Perizinan',
+                      subtitle: 'Riwayat & ajukan',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LeaveScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _MenuCard(
+                      icon: Icons.hotel_rounded,
+                      color: AppTheme.teal500,
+                      label: 'Info Asrama',
+                      subtitle: 'Kamar & pembina',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HostelScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _MenuCard(
+                      icon: Icons.checklist_rtl_rounded,
+                      color: AppTheme.emerald600,
+                      label: 'Presensi',
+                      subtitle: 'Kehadiran santri',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReportScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -288,17 +341,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String menu) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.slate800,
-        content: Text('Modul "$menu" akan tersedia di sprint berikutnya.'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
