@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/family_switcher.dart';
+import '../registration/history_screen.dart';
 import '../student/student_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -241,7 +242,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppTheme.emerald700,
                       label: 'Pendaftaran PSB',
                       subtitle: 'Santri baru',
-                      onTap: () => _showComingSoon(context, 'Pendaftaran PSB'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const RegistrationHistoryScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _MenuCard(
                       icon: Icons.rule_rounded,
