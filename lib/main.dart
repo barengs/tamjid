@@ -9,6 +9,7 @@ import 'providers/student_provider.dart';
 import 'providers/registration_provider.dart';
 import 'providers/finance_provider.dart';
 import 'providers/kesantrian_provider.dart';
+import 'core/notifications/fcm_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -18,8 +19,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID');
 
-  // Inisialisasi Dio Client
+  // Inisialisasi Dio Client & Notification
   DioClient().init();
+  await PushNotificationService().init();
 
   final authProvider = AuthProvider();
   await authProvider.bootstrap();

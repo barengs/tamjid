@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/family_switcher.dart';
+import '../../widgets/student_card_qr.dart';
 import '../registration/history_screen.dart';
 import '../student/student_detail_screen.dart';
 import '../finance/summary_screen.dart';
@@ -183,7 +184,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 24),
+
+              // Kartu Santri Digital dengan QR Code
+              Consumer<StudentProvider>(
+                builder: (context, sp, _) {
+                  if (sp.activeStudent != null) {
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 20, right: 20, top: 16),
+                      child: StudentCardQrWidget(student: sp.activeStudent!),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              const SizedBox(height: 20),
 
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 20),

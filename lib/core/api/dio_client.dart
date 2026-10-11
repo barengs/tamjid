@@ -50,6 +50,30 @@ class DioClient {
               await SessionStore().clearSession();
             }
           }
+
+          // Format pesan error jaringan yang ramah pengguna
+          if (error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.sendTimeout ||
+              error.type == DioExceptionType.receiveTimeout) {
+            final customErr = DioException(
+              requestOptions: error.requestOptions,
+              type: error.type,
+              error: 'Koneksi ke server pesantren melebihi batas waktu (timeout).',
+              message: 'Koneksi timeout. Silakan periksa jaringan internet Anda.',
+            );
+            return handler.next(customErr);
+          }
+
+          if (error.type == DioExceptionType.connectionError) {
+            final customErr = DioException(
+              requestOptions: error.requestOptions,
+              type: error.type,
+              error: 'Tidak dapat terhubung ke server pesantren.',
+              message: 'Tidak ada koneksi internet atau server pesantren sedang offline.',
+            );
+            return handler.next(customErr);
+          }
+
           return handler.next(error);
         },
       ),

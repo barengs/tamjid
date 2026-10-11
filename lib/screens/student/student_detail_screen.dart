@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/santri.dart';
 import '../../providers/student_provider.dart';
+import '../../widgets/student_card_qr.dart';
 
 /// Halaman detail dan daftar santri milik wali
 class StudentDetailScreen extends StatelessWidget {
@@ -58,6 +59,8 @@ class StudentDetailScreen extends StatelessWidget {
                   // Kartu Profil Santri Aktif
                   if (activeStudent != null) ...[
                     _ActiveStudentHeaderCard(student: activeStudent),
+                    const SizedBox(height: 16),
+                    StudentCardQrWidget(student: activeStudent),
                     const SizedBox(height: 24),
                   ],
 
