@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'core/api/dio_client.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/student_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
@@ -20,36 +21,39 @@ void main() async {
   final authProvider = AuthProvider();
   await authProvider.bootstrap();
 
-  runApp(MyApp(authProvider: authProvider));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: authProvider),
+        ChangeNotifierProvider(create: (_) => StudentProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  final AuthProvider authProvider;
-
-  const MyApp({super.key, required this.authProvider});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider.value(
-      value: authProvider,
-      child: MaterialApp(
-        title: 'Tamjid Wali',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.light,
-        home: const _Root(),
-        routes: {
-          '/login': (context) => LoginScreen(
-                authProvider: context.read<AuthProvider>(),
-                onLoginSuccess: () {},
-              ),
-          '/register': (context) => RegisterScreen(
-                authProvider: context.read<AuthProvider>(),
-                onRegisterSuccess: () {},
-              ),
-        },
-      ),
+    return MaterialApp(
+      title: 'Tamjid Wali',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.light,
+      home: const _Root(),
+      routes: {
+        '/login': (context) => LoginScreen(
+              authProvider: context.read<AuthProvider>(),
+              onLoginSuccess: () {},
+            ),
+        '/register': (context) => RegisterScreen(
+              authProvider: context.read<AuthProvider>(),
+              onRegisterSuccess: () {},
+            ),
+      },
     );
   }
 }
@@ -88,7 +92,10 @@ class _RootState extends State<_Root> {
     if (authProvider.isAuthenticated) {
       return HomeScreen(
         authProvider: authProvider,
-        onLogout: () => authProvider.logout(),
+        onLogout: () {
+          context.read<StudentProvider>().reset();
+          authProvider.logout();
+        },
       );
     }
 

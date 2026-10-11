@@ -3,7 +3,7 @@
 /// - bank-santri (keuangan, tabungan, tagihan, top-up)
 class ApiEndpoints {
   // --- smp-be (Port 8000) ---
-  static const String smpBase = 'https://api.tamjid.or.id/smp-be';
+  static const String smpBase = 'https://api.tamjid.or.id';
 
   // Auth
   static const String smpLogin = '$smpBase/api/auth/login';
@@ -21,8 +21,7 @@ class ApiEndpoints {
 
   // Pendaftaran Santri Baru (PSB)
   static const String smpRegistration = '$smpBase/api/main/registration';
-  static const String smpRegistrationList =
-      '$smpBase/api/main/registration';
+  static const String smpRegistrationList = '$smpBase/api/main/registration';
 
   // Kedisiplinan & Kesantrian
   static const String smpStudentViolations =
@@ -31,7 +30,7 @@ class ApiEndpoints {
       '$smpBase/api/main/student-leave/student/{id}/report';
 
   // --- bank-santri (Port 8001) ---
-  static const String bankBase = 'https://api.tamjid.or.id/bank-santri';
+  static const String bankBase = 'https://bank.tamjid.or.id';
 
   // Rekening & Saldo
   static const String bankAccount = '$bankBase/api/main/account/{nis}';
