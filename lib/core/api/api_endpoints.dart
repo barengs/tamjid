@@ -45,4 +45,6 @@ class ApiEndpoints {
       '$bankBase/api/main/top-up/bank-transfer';
   static const String bankTopUpByAccount =
       '$bankBase/api/main/top-up/account/{nis}';
+  static const String bankPaymentPackages =
+      '$bankBase/api/master/payment-package';
 }

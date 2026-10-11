@@ -6,6 +6,9 @@ import '../../providers/student_provider.dart';
 import '../../widgets/family_switcher.dart';
 import '../registration/history_screen.dart';
 import '../student/student_detail_screen.dart';
+import '../finance/summary_screen.dart';
+import '../finance/bills_screen.dart';
+import '../finance/topup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final AuthProvider authProvider;
@@ -221,21 +224,42 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppTheme.indigo500,
                       label: 'Keuangan',
                       subtitle: 'Saldo & mutasi',
-                      onTap: () => _showComingSoon(context, 'Keuangan'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FinanceSummaryScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _MenuCard(
                       icon: Icons.receipt_long_rounded,
                       color: AppTheme.amber500,
                       label: 'Tagihan SPP',
                       subtitle: 'Cek tunggakan',
-                      onTap: () => _showComingSoon(context, 'Tagihan SPP'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const BillsScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _MenuCard(
                       icon: Icons.upload_rounded,
                       color: AppTheme.teal600,
                       label: 'Top-Up Dana',
                       subtitle: 'Transfer bank',
-                      onTap: () => _showComingSoon(context, 'Top-Up Dana'),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TopUpScreen(),
+                          ),
+                        );
+                      },
                     ),
                     _MenuCard(
                       icon: Icons.mosque_rounded,
