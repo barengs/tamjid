@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../storage/session_store.dart';
+import '../api/dio_client.dart';
+import '../api/api_endpoints.dart';
 
 /// Notification payload model untuk notifikasi wali santri
 class AppNotification {
@@ -61,14 +63,43 @@ class PushNotificationService {
   }
 
   /// Daftarkan token FCM ke backend pesantren setelah login
-  Future<bool> syncTokenWithBackend() async {
+  Future<bool> syncTokenWithBackend({String deviceType = 'android'}) async {
     final token = SessionStore().token;
     if (token == null || _fcmToken == null) return false;
 
-    // Disiapkan untuk endpoint FCM registration:
-    // await DioClient().dio.post('/api/main/fcm/register', data: {'fcm_token': _fcmToken});
-    debugPrint('FCM token synchronized with backend for user session.');
-    return true;
+    try {
+      await DioClient().dio.post(
+        ApiEndpoints.smpFcmRegister,
+        data: {
+          'token': _fcmToken,
+          'device_type': deviceType,
+          'device_name': 'Tamjid Mobile App',
+        },
+      );
+      debugPrint('FCM token synchronized with backend for user session.');
+      return true;
+    } catch (e) {
+      debugPrint('Failed to sync FCM token with backend: $e');
+      return false;
+    }
+  }
+
+  /// Hapus token FCM dari backend saat logout
+  Future<bool> unregisterToken() async {
+    final token = SessionStore().token;
+    if (token == null || _fcmToken == null) return false;
+
+    try {
+      await DioClient().dio.post(
+        ApiEndpoints.smpFcmUnregister,
+        data: {'token': _fcmToken},
+      );
+      debugPrint('FCM token unregistered from backend.');
+      return true;
+    } catch (e) {
+      debugPrint('Failed to unregister FCM token: $e');
+      return false;
+    }
   }
 
   /// Tambah notifikasi in-app baru

@@ -53,4 +53,8 @@ class ApiEndpoints {
       '$bankBase/api/main/top-up/account/{nis}';
   static const String bankPaymentPackages =
       '$bankBase/api/master/payment-package';
+
+  // Push Notification (FCM)
+  static const String smpFcmRegister = '$smpBase/api/main/fcm/register';
+  static const String smpFcmUnregister = '$smpBase/api/main/fcm/unregister';
 }

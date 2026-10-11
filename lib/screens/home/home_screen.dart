@@ -14,6 +14,8 @@ import '../kamtib/violation_screen.dart';
 import '../kamtib/leave_screen.dart';
 import '../academic/hostel_screen.dart';
 import '../academic/report_screen.dart';
+import '../notifications/notification_screen.dart';
+import '../../core/notifications/fcm_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final AuthProvider authProvider;
@@ -60,6 +62,15 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Beranda'),
         actions: [
+          _NotificationBell(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
             tooltip: 'Keluar',
@@ -539,6 +550,54 @@ class _MenuCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Tombol lonceng notifikasi dengan badge unread count
+class _NotificationBell extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _NotificationBell({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = PushNotificationService().unreadCount;
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined),
+          tooltip: 'Notifikasi',
+          onPressed: onTap,
+        ),
+        if (unread > 0)
+          Positioned(
+            right: 8,
+            top: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.rose500,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                unread > 99 ? '99+' : '$unread',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

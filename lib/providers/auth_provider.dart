@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../core/api/api_endpoints.dart';
 import '../core/api/dio_client.dart';
 import '../core/storage/session_store.dart';
+import '../core/notifications/fcm_service.dart';
 import '../models/wali_user.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -30,8 +31,9 @@ class AuthProvider extends ChangeNotifier {
         _status = AuthStatus.authenticated;
         notifyListeners();
 
-        // Refresh profil di background secara silent
+        // Refresh profil di background secara silent dan sinkron token FCM
         fetchProfile();
+        PushNotificationService().syncTokenWithBackend();
         return;
       } catch (_) {}
     }
@@ -66,6 +68,9 @@ class AuthProvider extends ChangeNotifier {
 
         _status = AuthStatus.authenticated;
         notifyListeners();
+
+        // Sinkronisasi FCM token ke backend
+        PushNotificationService().syncTokenWithBackend();
         return true;
       } else {
         throw Exception(response.data?['message'] ?? 'Login gagal.');
@@ -165,6 +170,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     try {
       final dio = DioClient().dio;
+      await PushNotificationService().unregisterToken();
       await dio.post(ApiEndpoints.smpLogout);
     } catch (_) {}
 
