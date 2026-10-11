@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../storage/session_store.dart';
 import '../api/dio_client.dart';
 import '../api/api_endpoints.dart';
@@ -23,13 +24,16 @@ class AppNotification {
 }
 
 /// Service Push Notification untuk aplikasi Wali Santri Tamjid
-/// Siap terhubung dengan Firebase Cloud Messaging (FCM) dan sistem notifikasi lokal.
+/// Mengintegrasikan Firebase Cloud Messaging (FCM) native Flutter,
+/// sinkronisasi device token ke backend pesantren (smp-be),
+/// dan daftar notifikasi in-app (local state).
 class PushNotificationService {
   static final PushNotificationService _instance =
       PushNotificationService._internal();
   factory PushNotificationService() => _instance;
   PushNotificationService._internal();
 
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   String? _fcmToken;
   final List<AppNotification> _notifications = [];
 
@@ -37,14 +41,39 @@ class PushNotificationService {
   List<AppNotification> get notifications => List.unmodifiable(_notifications);
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
-  /// Inisialisasi service dan simulasi pendaftaran push token
+  /// Inisialisasi service: dapatkan token FCM asli, register ke Firebase,
+  /// dan muat notifikasi selamat datang default.
   Future<void> init() async {
     try {
-      // Mock / bootstrap device token
-      _fcmToken = 'device_token_${DateTime.now().millisecondsSinceEpoch}';
+      // 1. Request permission (Android 13+, iOS)
+      await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+
+      // 2. Dapatkan FCM Token asli dari Firebase
+      _fcmToken = await _firebaseMessaging.getToken();
+      if (_fcmToken == null || _fcmToken!.isEmpty) {
+        // Fallback untuk platform web/simulator tanpa layanan Firebase
+        _fcmToken = 'device_token_${DateTime.now().millisecondsSinceEpoch}';
+      }
       debugPrint('PushNotificationService initialized with token: $_fcmToken');
 
-      // Muat notifikasi selamat datang default
+      // 3. Dengarkan foreground messages (saat aplikasi terbuka)
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        final notification = message.notification;
+        if (notification != null) {
+          addNotification(
+            title: notification.title ?? 'Pemberitahuan',
+            body: notification.body ?? 'Ada notifikasi baru.',
+            type: message.data['type']?.toString(),
+          );
+        }
+      });
+
+      // 4. Muat notifikasi selamat datang default
       if (_notifications.isEmpty) {
         _notifications.add(
           AppNotification(
@@ -59,6 +88,8 @@ class PushNotificationService {
       }
     } catch (e) {
       debugPrint('Error init PushNotificationService: $e');
+      // Fallback token mock agar aplikasi tetap berjalan tanpa crash
+      _fcmToken = 'device_token_${DateTime.now().millisecondsSinceEpoch}';
     }
   }
 

@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Push Notification Permissions (Firebase Cloud Messaging) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="tamjid"
+        android:label="Tamjid Wali"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
