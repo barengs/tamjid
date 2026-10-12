@@ -13,7 +13,7 @@ import '../../providers/finance_provider.dart';
 import '../../providers/student_provider.dart';
 import 'topup_history.dart';
 
-/// Form Pengajuan Top-Up Transfer Bank & Upload Bukti Pembayaran
+/// Form Pengajuan Top-Up Transfer Bank & Pembayaran Layanan Pesantren
 class TopUpScreen extends StatefulWidget {
   final Student? student;
 
@@ -21,7 +21,7 @@ class TopUpScreen extends StatefulWidget {
 
   @override
   State<TopUpScreen> createState() => _TopUpScreenState();
-}
+  }
 
 class _TopUpScreenState extends State<TopUpScreen> {
   final _formKey = GlobalKey<FormState>();
@@ -34,38 +34,39 @@ class _TopUpScreenState extends State<TopUpScreen> {
     decimalDigits: 0,
   );
 
+  /// 0 = Top-Up Saldo Uang Saku Bebas (Tanpa Paket)
+  /// 1 = Pembayaran Paket Pesantren & Fasilitas Tambahan (Add-On)
+  int _serviceType = 0;
+
   PaymentPackageBrief? _selectedPackage;
+  final Set<int> _selectedAddonIds = {};
   File? _proofFile;
   final ImagePicker _picker = ImagePicker();
 
-  final List<int> _presetAmounts = [50000, 100000, 250000, 500000, 1000000];
+  final List<int> _presetAmounts = [50000, 100000, 200000, 500000, 1000000];
 
   @override
   void initState() {
     super.initState();
+    _amountController.text = '100000';
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final student = _targetStudent;
       final fp = context.read<FinanceProvider>();
-      if (fp.availablePackages.isEmpty) {
-        fp.fetchAvailablePackages().then((_) {
-          if (mounted && fp.availablePackages.isNotEmpty) {
-            setState(() {
-              _selectedPackage = fp.availablePackages.first;
-              if (_selectedPackage != null && _selectedPackage!.totalAmount > 0) {
-                _amountController.text =
-                    _selectedPackage!.totalAmount.toInt().toString();
-              }
-            });
-          }
-        });
-      } else {
-        setState(() {
-          _selectedPackage = fp.availablePackages.first;
-          if (_selectedPackage != null && _selectedPackage!.totalAmount > 0) {
-            _amountController.text =
-                _selectedPackage!.totalAmount.toInt().toString();
-          }
-        });
-      }
+      final sId = student?.id;
+
+      fp.fetchAvailablePackages(studentId: sId).then((_) {
+        if (mounted && fp.availablePackages.isNotEmpty) {
+          setState(() {
+            _selectedPackage ??= fp.availablePackages.first;
+            if (_serviceType == 1) {
+              _recalculateTotalAmount();
+            }
+          });
+        }
+      });
+
+      fp.fetchAvailableAddons(studentId: sId);
     });
   }
 
@@ -79,12 +80,27 @@ class _TopUpScreenState extends State<TopUpScreen> {
   Student? get _targetStudent =>
       widget.student ?? context.read<StudentProvider>().activeStudent;
 
+  void _recalculateTotalAmount() {
+    final fp = context.read<FinanceProvider>();
+    final pkgAmount = _selectedPackage?.totalAmount ?? 0.0;
+
+    double addonTotal = 0.0;
+    for (final addon in fp.availableAddons) {
+      if (_selectedAddonIds.contains(addon.id)) {
+        addonTotal += addon.defaultAmount;
+      }
+    }
+
+    final total = pkgAmount + addonTotal;
+    _amountController.text = total.toInt().toString();
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 1200,
-        maxHeight: 1200,
+        maxWidth: 1400,
+        maxHeight: 1400,
         imageQuality: 85,
       );
 
@@ -165,7 +181,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     if (student == null || student.nis.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Pilih santri terlebih dahulu.'),
+          content: Text('Pilih data santri terlebih dahulu.'),
           backgroundColor: AppTheme.rose500,
         ),
       );
@@ -184,17 +200,23 @@ class _TopUpScreenState extends State<TopUpScreen> {
       return;
     }
 
-    final packageId = _selectedPackage?.id ?? 1;
+    final isPackage = _serviceType == 1;
+    final packageId = isPackage ? _selectedPackage?.id : null;
+    final addonIds = isPackage && _selectedAddonIds.isNotEmpty
+        ? _selectedAddonIds.toList()
+        : null;
+
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
 
-    final result =
-        await context.read<FinanceProvider>().submitBankTransferTopUp(
-              accountNumber: student.nis,
-              paymentPackageId: packageId,
-              amount: amount,
-              filePath: _proofFile!.path,
-              notes: _notesController.text.trim(),
-            );
+    final result = await context.read<FinanceProvider>().submitBankTransferTopUp(
+          studentId: student.id,
+          accountNumber: student.nis,
+          paymentPackageId: packageId,
+          addonItemIds: addonIds,
+          amount: amount,
+          filePath: _proofFile!.path,
+          notes: _notesController.text.trim(),
+        );
 
     if (!mounted) return;
 
@@ -303,14 +325,15 @@ class _TopUpScreenState extends State<TopUpScreen> {
     final student = _targetStudent;
     final financeProvider = context.watch<FinanceProvider>();
     final packages = financeProvider.availablePackages;
+    final addons = financeProvider.availableAddons;
 
     return Scaffold(
       backgroundColor: AppTheme.slate50,
       appBar: AppBar(
-        title: const Text('Top-Up Transfer Bank'),
+        title: const Text('Top-Up & Pembayaran'),
         actions: [
           IconButton(
-            tooltip: 'Riwayat Top-Up',
+            tooltip: 'Riwayat Pengajuan',
             icon: const Icon(Icons.history_rounded),
             onPressed: () {
               if (student != null) {
@@ -334,238 +357,26 @@ class _TopUpScreenState extends State<TopUpScreen> {
             children: [
               // Info Rekening Tujuan Transfer Pesantren
               _buildBankDestinationCard(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              // Kartu Santri Penerima
+              // Santri Penerima
               if (student != null) _buildStudentBadge(student),
               const SizedBox(height: 20),
 
-              // Pilihan Paket Pembayaran / Alokasi
-              const Text(
-                'Alokasi Pembayaran',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.slate700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              if (financeProvider.isLoadingPackages)
-                const LinearProgressIndicator()
-              else if (packages.isNotEmpty)
-                DropdownButtonFormField<PaymentPackageBrief>(
-                  initialValue: _selectedPackage,
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppTheme.slate200),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppTheme.slate200),
-                    ),
-                  ),
-                  items: packages.map((pkg) {
-                    return DropdownMenuItem(
-                      value: pkg,
-                      child: Text(
-                        '${pkg.packageName} (${_currencyFormat.format(pkg.totalAmount)})',
-                        style: const TextStyle(fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedPackage = val;
-                      if (val != null && val.totalAmount > 0) {
-                        _amountController.text =
-                            val.totalAmount.toInt().toString();
-                      }
-                    });
-                  },
-                ),
+              // Selector Jenis Layanan
+              _buildServiceTypeSelector(),
               const SizedBox(height: 20),
 
-              // Input Nominal Top-Up
-              const Text(
-                'Nominal Transfer (Rp)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.slate700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: AppTheme.slate900,
-                ),
-                decoration: InputDecoration(
-                  prefixText: 'Rp ',
-                  prefixStyle: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.slate600,
-                  ),
-                  hintText: '100000',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppTheme.slate200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppTheme.slate200),
-                  ),
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Nominal transfer wajib diisi';
-                  }
-                  final num = int.tryParse(val.trim());
-                  if (num == null || num < 10000) {
-                    return 'Nominal minimal Rp 10.000';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
+              // Form Sesuai Jenis Layanan
+              if (_serviceType == 0)
+                _buildSakuTopUpSection()
+              else
+                _buildPackagePaymentSection(packages, addons, financeProvider),
 
-              // Preset Buttons
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _presetAmounts.map((amt) {
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        _amountController.text = amt.toString();
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.slate200),
-                      ),
-                      child: Text(
-                        _currencyFormat.format(amt),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.slate700,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
               const SizedBox(height: 20),
 
               // Upload Foto Bukti Struk
-              const Text(
-                'Bukti Struk Transfer (Wajib)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.slate700,
-                ),
-              ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: _showImageSourceDialog,
-                child: Container(
-                  width: double.infinity,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: _proofFile != null
-                          ? AppTheme.emerald600
-                          : AppTheme.slate200,
-                      width: _proofFile != null ? 1.5 : 1,
-                    ),
-                  ),
-                  child: _proofFile != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image.file(
-                                _proofFile!,
-                                fit: BoxFit.cover,
-                              ),
-                              Positioned(
-                                right: 10,
-                                top: 10,
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.6),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: const BoxDecoration(
-                                color: AppTheme.emerald50,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.add_a_photo_outlined,
-                                color: AppTheme.emerald600,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Sentuh untuk unggah foto struk',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.slate700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Mendukung JPG, PNG, atau WEBP maks 2MB',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.slate400,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
+              _buildProofUploadSection(),
               const SizedBox(height: 20),
 
               // Catatan Tambahan (Opsional)
@@ -621,9 +432,11 @@ class _TopUpScreenState extends State<TopUpScreen> {
                                 AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Kirim Bukti Pembayaran',
-                          style: TextStyle(
+                      : Text(
+                          _serviceType == 0
+                              ? 'Kirim Top-Up Uang Saku'
+                              : 'Kirim Pembayaran Paket & Fasilitas',
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.3,
@@ -639,6 +452,627 @@ class _TopUpScreenState extends State<TopUpScreen> {
     );
   }
 
+  /// Selector Segmented Button Jenis Layanan
+  Widget _buildServiceTypeSelector() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.slate200,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_serviceType != 0) {
+                  setState(() {
+                    _serviceType = 0;
+                    _amountController.text = '100000';
+                  });
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _serviceType == 0 ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _serviceType == 0
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.account_balance_wallet_rounded,
+                      size: 16,
+                      color: _serviceType == 0
+                          ? AppTheme.emerald700
+                          : AppTheme.slate600,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Uang Saku Bebas',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: _serviceType == 0
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: _serviceType == 0
+                            ? AppTheme.emerald800
+                            : AppTheme.slate600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_serviceType != 1) {
+                  setState(() {
+                    _serviceType = 1;
+                    _recalculateTotalAmount();
+                  });
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _serviceType == 1 ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: _serviceType == 1
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inventory_2_rounded,
+                      size: 16,
+                      color: _serviceType == 1
+                          ? AppTheme.emerald700
+                          : AppTheme.slate600,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Paket & Fasilitas',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: _serviceType == 1
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color: _serviceType == 1
+                            ? AppTheme.emerald800
+                            : AppTheme.slate600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tampilan Khusus Tab 1: Top-Up Uang Saku Santri Bebas
+  Widget _buildSakuTopUpSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.emerald50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.emerald100),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline_rounded,
+                  color: AppTheme.emerald700, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Dana top-up ini 100% langsung masuk ke saldo rekening kartu santri untuk kebutuhan harian, jajan di koperasi, dan kasir pesantren.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.emerald900,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        const Text(
+          'Nominal Transfer (Rp)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.slate700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: _amountController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.slate900,
+          ),
+          decoration: InputDecoration(
+            prefixText: 'Rp ',
+            prefixStyle: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.slate600,
+            ),
+            hintText: '100000',
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppTheme.slate200),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppTheme.slate200),
+            ),
+          ),
+          validator: (val) {
+            if (val == null || val.trim().isEmpty) {
+              return 'Nominal transfer wajib diisi';
+            }
+            final num = int.tryParse(val.trim());
+            if (num == null || num < 10000) {
+              return 'Nominal minimal Rp 10.000';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 10),
+
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _presetAmounts.map((amt) {
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  _amountController.text = amt.toString();
+                });
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.slate200),
+                ),
+                child: Text(
+                  _currencyFormat.format(amt),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.slate700,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  /// Tampilan Khusus Tab 2: Pembayaran Paket Pesantren & Add-On Fasilitas
+  Widget _buildPackagePaymentSection(
+    List<PaymentPackageBrief> packages,
+    List<TransactionItemAddon> addons,
+    FinanceProvider fp,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Pilihan Paket Pembayaran',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.slate700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (fp.isLoadingPackages)
+          const LinearProgressIndicator()
+        else if (packages.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: const Text('Belum ada paket pembayaran aktif.'),
+          )
+        else
+          DropdownButtonFormField<PaymentPackageBrief>(
+            initialValue: _selectedPackage,
+            decoration: InputDecoration(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppTheme.slate200),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppTheme.slate200),
+              ),
+            ),
+            items: packages.map((pkg) {
+              return DropdownMenuItem(
+                value: pkg,
+                child: Text(
+                  '${pkg.packageName} (${_currencyFormat.format(pkg.totalAmount)})',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (val) {
+              setState(() {
+                _selectedPackage = val;
+                _recalculateTotalAmount();
+              });
+            },
+          ),
+        const SizedBox(height: 12),
+
+        // Rincian Komponen Paket (Accordion / Box)
+        if (_selectedPackage != null && _selectedPackage!.items.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Rincian Komponen Paket:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.slate800,
+                      ),
+                    ),
+                    Text(
+                      _currencyFormat.format(_selectedPackage!.totalAmount),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.emerald700,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 16),
+                ..._selectedPackage!.items.map((item) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          item.isSaku
+                              ? Icons.account_balance_wallet_rounded
+                              : Icons.check_circle_outline_rounded,
+                          size: 15,
+                          color: item.isSaku
+                              ? AppTheme.emerald600
+                              : AppTheme.slate400,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.itemName,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        if (item.isSaku)
+                          Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.emerald50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Uang Saku',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.emerald700,
+                              ),
+                            ),
+                          ),
+                        Text(
+                          _currencyFormat.format(item.amount),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: item.isSaku
+                                ? AppTheme.emerald700
+                                : AppTheme.slate700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        const SizedBox(height: 18),
+
+        // Fasilitas Tambahan (Add-On Checklist)
+        const Text(
+          'Fasilitas Tambahan Santri (Opsional)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.slate700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (fp.isLoadingAddons)
+          const LinearProgressIndicator()
+        else if (addons.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: const Text(
+              'Tidak ada fasilitas tambahan opsional.',
+              style: TextStyle(fontSize: 12, color: AppTheme.slate500),
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: Column(
+              children: addons.map((addon) {
+                final isChecked = _selectedAddonIds.contains(addon.id);
+                return CheckboxListTile(
+                  dense: true,
+                  value: isChecked,
+                  activeColor: AppTheme.emerald600,
+                  title: Text(
+                    addon.itemName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: addon.description != null &&
+                          addon.description!.isNotEmpty
+                      ? Text(addon.description!,
+                          style: const TextStyle(fontSize: 11))
+                      : null,
+                  secondary: Text(
+                    _currencyFormat.format(addon.defaultAmount),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.emerald700,
+                    ),
+                  ),
+                  onChanged: (bool? checked) {
+                    setState(() {
+                      if (checked == true) {
+                        _selectedAddonIds.add(addon.id);
+                      } else {
+                        _selectedAddonIds.remove(addon.id);
+                      }
+                      _recalculateTotalAmount();
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+        const SizedBox(height: 18),
+
+        // Total Pembayaran Terkalkulasi
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppTheme.slate900, AppTheme.slate800],
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'TOTAL TRANSFER',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Paket + Add-On Terpilih',
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
+                ],
+              ),
+              Text(
+                _currencyFormat.format(
+                  double.tryParse(_amountController.text) ?? 0,
+                ),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Widget Upload Foto Bukti Struk
+  Widget _buildProofUploadSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Bukti Struk Transfer (Wajib)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.slate700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: _showImageSourceDialog,
+          child: Container(
+            width: double.infinity,
+            height: 160,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _proofFile != null
+                    ? AppTheme.emerald600
+                    : AppTheme.slate200,
+                width: _proofFile != null ? 1.5 : 1,
+              ),
+            ),
+            child: _proofFile != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.file(
+                          _proofFile!,
+                          fit: BoxFit.cover,
+                        ),
+                        Positioned(
+                          right: 10,
+                          top: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: const BoxDecoration(
+                          color: AppTheme.emerald50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.add_a_photo_outlined,
+                          color: AppTheme.emerald600,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Sentuh untuk unggah foto struk',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.slate700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Mendukung JPG, PNG, atau WEBP maks 5MB',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.slate400,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Kartu Rekening Tujuan Transfer Pesantren
   Widget _buildBankDestinationCard() {
     const bankName = 'BANK SYARIAH INDONESIA (BSI)';
     const accountNum = '7123456789';
@@ -761,6 +1195,7 @@ class _TopUpScreenState extends State<TopUpScreen> {
     );
   }
 
+  /// Badge Santri Penerima
   Widget _buildStudentBadge(Student student) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

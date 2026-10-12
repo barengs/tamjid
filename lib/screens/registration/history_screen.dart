@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/api/dio_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/auth_provider.dart';
 import 'registration_wizard_screen.dart';
 
 /// Halaman Riwayat Pendaftaran Santri Baru (PSB)
@@ -34,7 +36,17 @@ class _RegistrationHistoryScreenState extends State<RegistrationHistoryScreen> {
 
     try {
       final dio = DioClient().dio;
-      final response = await dio.get(ApiEndpoints.smpRegistrationList);
+      final authProvider = context.read<AuthProvider>();
+      final myNik = authProvider.currentUser?.profile?.nik ?? '';
+      final myEmail = authProvider.currentUser?.email ?? '';
+
+      final queryParams = <String, dynamic>{'per_page': 50};
+      if (myNik.isNotEmpty) queryParams['parent_id'] = myNik;
+
+      final response = await dio.get(
+        ApiEndpoints.smpRegistrationList,
+        queryParameters: queryParams,
+      );
 
       if (response.statusCode == 200 && response.data != null) {
         final raw = response.data;
@@ -50,8 +62,25 @@ class _RegistrationHistoryScreenState extends State<RegistrationHistoryScreen> {
           list = raw;
         }
 
+        final allItems = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+        // Filter ketat: Hanya tampilkan data pendaftaran milik wali ini
+        final filtered = allItems.where((item) {
+          final pId = item['parent_id']?.toString() ?? '';
+          final pNik = (item['parent'] is Map) ? item['parent']['nik']?.toString() ?? '' : '';
+          final pEmail = (item['parent'] is Map) ? item['parent']['email']?.toString() ?? '' : '';
+
+          if (myNik.isNotEmpty) {
+            return pId == myNik || pNik == myNik;
+          }
+          if (myEmail.isNotEmpty && pEmail.isNotEmpty) {
+            return pEmail.toLowerCase() == myEmail.toLowerCase();
+          }
+          return true;
+        }).toList();
+
         setState(() {
-          _registrations = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _registrations = filtered;
           _isLoading = false;
         });
       } else {

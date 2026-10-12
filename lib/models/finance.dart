@@ -187,6 +187,58 @@ class AccountMovementItem {
   bool get isDebit => type.toLowerCase() == 'debit';
 }
 
+class PaymentPackageItemDetail {
+  final int id;
+  final String itemName;
+  final String category;
+  final double amount;
+  final bool isSaku;
+
+  const PaymentPackageItemDetail({
+    required this.id,
+    required this.itemName,
+    required this.category,
+    required this.amount,
+    required this.isSaku,
+  });
+
+  factory PaymentPackageItemDetail.fromJson(Map<String, dynamic> json) {
+    return PaymentPackageItemDetail(
+      id: json['id'] is num ? (json['id'] as num).toInt() : 0,
+      itemName: json['item_name']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'lainnya',
+      amount: AccountBalance._toDouble(json['amount']),
+      isSaku: json['is_saku'] == true || json['is_saku'] == 1,
+    );
+  }
+}
+
+class TransactionItemAddon {
+  final int id;
+  final String itemName;
+  final double defaultAmount;
+  final String? description;
+  final bool isActive;
+
+  const TransactionItemAddon({
+    required this.id,
+    required this.itemName,
+    required this.defaultAmount,
+    this.description,
+    required this.isActive,
+  });
+
+  factory TransactionItemAddon.fromJson(Map<String, dynamic> json) {
+    return TransactionItemAddon(
+      id: json['id'] is num ? (json['id'] as num).toInt() : 0,
+      itemName: json['item_name']?.toString() ?? '',
+      defaultAmount: AccountBalance._toDouble(json['default_amount']),
+      description: json['description']?.toString(),
+      isActive: json['is_active'] == true || json['is_active'] == 1,
+    );
+  }
+}
+
 class PaymentPackageBrief {
   final int id;
   final String packageCode;
@@ -197,6 +249,7 @@ class PaymentPackageBrief {
   final double totalAmount;
   final double sakuAmount;
   final bool isActive;
+  final List<PaymentPackageItemDetail> items;
 
   const PaymentPackageBrief({
     required this.id,
@@ -208,6 +261,7 @@ class PaymentPackageBrief {
     required this.totalAmount,
     required this.sakuAmount,
     required this.isActive,
+    this.items = const [],
   });
 
   factory PaymentPackageBrief.fromJson(Map<String, dynamic> json) {
@@ -221,6 +275,11 @@ class PaymentPackageBrief {
       totalAmount: AccountBalance._toDouble(json['total_amount']),
       sakuAmount: AccountBalance._toDouble(json['saku_amount']),
       isActive: json['is_active'] == true || json['is_active'] == 1,
+      items: json['items'] is List
+          ? (json['items'] as List)
+              .map((it) => PaymentPackageItemDetail.fromJson(it as Map<String, dynamic>))
+              .toList()
+          : const [],
     );
   }
 }

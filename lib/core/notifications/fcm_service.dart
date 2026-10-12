@@ -33,7 +33,9 @@ class PushNotificationService {
   factory PushNotificationService() => _instance;
   PushNotificationService._internal();
 
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  FirebaseMessaging? _messaging;
+  FirebaseMessaging get _firebaseMessaging =>
+      _messaging ??= FirebaseMessaging.instance;
   String? _fcmToken;
   final List<AppNotification> _notifications = [];
 
@@ -90,6 +92,18 @@ class PushNotificationService {
       debugPrint('Error init PushNotificationService: $e');
       // Fallback token mock agar aplikasi tetap berjalan tanpa crash
       _fcmToken = 'device_token_${DateTime.now().millisecondsSinceEpoch}';
+      if (_notifications.isEmpty) {
+        _notifications.add(
+          AppNotification(
+            id: 'notif_welcome',
+            title: 'Selamat Datang di Tamjid Wali',
+            body:
+                'Pantau perkembangan pendidikan, kedisiplinan, dan keuangan santri Anda secara mudah dan transparan.',
+            type: 'general',
+            timestamp: DateTime.now(),
+          ),
+        );
+      }
     }
   }
 

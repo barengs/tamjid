@@ -40,7 +40,9 @@ class _TopUpHistoryScreenState extends State<TopUpHistoryScreen> {
   void _load() {
     final student = _targetStudent;
     if (student != null && student.nis.isNotEmpty) {
-      context.read<FinanceProvider>().fetchTopUpHistory(student.nis);
+      context
+          .read<FinanceProvider>()
+          .fetchTopUpHistory(student.nis, studentId: student.id);
     }
   }
 

@@ -212,6 +212,11 @@ class StudentPresenceItem {
   final String date;
   final String status; // hadir, sakit, izin, alpa
   final String? className;
+  final String? schoolName; // Nama lembaga / sekolah pendidikan
+  final String? classGroupName; // Nama rombel / class group
+  final String? studyName; // Nama pelajaran / study
+  final String? teacherName; // Nama guru / staff pengajar
+  final String? academicYear; // Tahun ajaran
   final String? notes;
 
   const StudentPresenceItem({
@@ -219,17 +224,35 @@ class StudentPresenceItem {
     required this.date,
     required this.status,
     this.className,
+    this.schoolName,
+    this.classGroupName,
+    this.studyName,
+    this.teacherName,
+    this.academicYear,
     this.notes,
   });
 
   factory StudentPresenceItem.fromJson(Map<String, dynamic> json) {
     final sched = json['meeting_schedule']?['schedule'];
+    final classSchedule = sched?['classSchedule'];
+    final classroom = sched?['classroom'];
+    final classGroup = sched?['classGroup'];
+    final study = sched?['study'];
+    final teacher = sched?['teacher'];
 
     return StudentPresenceItem(
       id: json['id'] is num ? (json['id'] as num).toInt() : 0,
       date: json['date']?.toString() ?? '',
       status: json['status']?.toString().toLowerCase() ?? 'hadir',
-      className: sched?['classroom']?['name']?.toString(),
+      className: classroom?['name']?.toString(),
+      schoolName: classSchedule?['education']?['name']?.toString() ??
+          classSchedule?['educational_institution']?['name']?.toString(),
+      classGroupName: classGroup?['name']?.toString(),
+      studyName: study?['name']?.toString(),
+      teacherName: teacher?['first_name']?.toString() ??
+          teacher?['name']?.toString(),
+      academicYear: classSchedule?['academic_year']?.toString() ??
+          classSchedule?['academicYear']?.toString(),
       notes: json['notes']?.toString(),
     );
   }
@@ -241,6 +264,9 @@ class HostelRoomInfo {
   final int? roomCapacity;
   final String? className;
   final String? programName;
+  final String? institutionName; // Nama sekolah / lembaga pendidikan
+  final String? classGroupName; // Nama rombel (class group)
+  final String? academicYear; // Tahun ajaran aktif
 
   const HostelRoomInfo({
     required this.hostelName,
@@ -248,6 +274,9 @@ class HostelRoomInfo {
     this.roomCapacity,
     this.className,
     this.programName,
+    this.institutionName,
+    this.classGroupName,
+    this.academicYear,
   });
 
   factory HostelRoomInfo.fromJson(Map<String, dynamic> json) {
@@ -268,6 +297,9 @@ class HostelRoomInfo {
           : null,
       className: currentClass?['class_name']?.toString(),
       programName: json['program']?['name']?.toString(),
+      institutionName: currentClass?['institution_name']?.toString(),
+      classGroupName: currentClass?['class_group_name']?.toString(),
+      academicYear: currentClass?['academic_year']?.toString(),
     );
   }
 }

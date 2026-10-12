@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -18,6 +19,7 @@ class FinanceProvider extends ChangeNotifier {
   bool _isLoadingMovements = false;
   bool _isLoadingTopUps = false;
   bool _isLoadingPackages = false;
+  bool _isLoadingAddons = false;
   bool _isSubmittingTopUp = false;
 
   AccountBalance? _currentAccount;
@@ -25,6 +27,7 @@ class FinanceProvider extends ChangeNotifier {
   List<AccountMovementItem> _movements = [];
   List<TopUpRequestItem> _topUpHistory = [];
   List<PaymentPackageBrief> _availablePackages = [];
+  List<TransactionItemAddon> _availableAddons = [];
 
   String? _errorMessage;
 
@@ -34,6 +37,7 @@ class FinanceProvider extends ChangeNotifier {
   bool get isLoadingMovements => _isLoadingMovements;
   bool get isLoadingTopUps => _isLoadingTopUps;
   bool get isLoadingPackages => _isLoadingPackages;
+  bool get isLoadingAddons => _isLoadingAddons;
   bool get isSubmittingTopUp => _isSubmittingTopUp;
 
   bool get isLoadingGeneral =>
@@ -44,7 +48,77 @@ class FinanceProvider extends ChangeNotifier {
   List<AccountMovementItem> get movements => _movements;
   List<TopUpRequestItem> get topUpHistory => _topUpHistory;
   List<PaymentPackageBrief> get availablePackages => _availablePackages;
+  List<TransactionItemAddon> get availableAddons => _availableAddons;
   String? get errorMessage => _errorMessage;
+
+  /// Ambil seluruh data keuangan santri via endpoint proxy resmi smp-be
+  /// Menggunakan token JWT smp-be wali untuk mengambil data rekening,
+  /// riwayat transaksi, dan tagihan/tunggakan langsung dari bank-santri.
+  Future<bool> fetchStudentFinanceProxy({required int studentId, required String nis}) async {
+    if (studentId <= 0) return false;
+    _isLoadingAccount = true;
+    _isLoadingBills = true;
+    _isLoadingMovements = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final url = ApiEndpoints.smpStudentFinance.replaceAll('{id}', studentId.toString());
+      final response = await _dio.get(url);
+
+      if (response.statusCode == 200 && response.data != null) {
+        final rawData = response.data['data'] as Map<String, dynamic>?;
+        if (rawData != null) {
+          // 1. Akun & Saldo
+          if (rawData['account'] is Map<String, dynamic>) {
+            _currentAccount = AccountBalance.fromJson(
+              rawData['account'] as Map<String, dynamic>,
+            );
+          }
+
+          // 2. Tagihan & Tunggakan
+          if (rawData['arrears'] is Map<String, dynamic>) {
+            _billSummary = BillSummary.fromJson(
+              rawData['arrears'] as Map<String, dynamic>,
+            );
+          }
+
+          // 3. Transaksi / Mutasi
+          if (rawData['transactions'] is List) {
+            final txList = rawData['transactions'] as List;
+            _movements = txList
+                .map((item) =>
+                    AccountMovementItem.fromJson(item as Map<String, dynamic>))
+                .toList();
+          }
+
+          _isLoadingAccount = false;
+          _isLoadingBills = false;
+          _isLoadingMovements = false;
+          notifyListeners();
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetchStudentFinanceProxy, falling back to direct endpoints: $e');
+      _errorMessage = 'Gagal memuat keuangan: ${_extractErrorMessage(e)}';
+    }
+
+    _isLoadingAccount = false;
+    _isLoadingBills = false;
+    _isLoadingMovements = false;
+    notifyListeners();
+
+    // Fallback jika proxy belum tersedia / error
+    if (nis.isNotEmpty) {
+      await fetchAccount(nis);
+      await fetchBills(nis);
+      await fetchMovements(nis);
+      return _currentAccount != null;
+    }
+
+    return false;
+  }
 
   /// Ambil data akun & saldo santri berdasarkan NIS
   Future<bool> fetchAccount(String nis) async {
@@ -134,14 +208,17 @@ class FinanceProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Ambil riwayat pengajuan top-up berdasarkan NIS
-  Future<bool> fetchTopUpHistory(String nis) async {
-    if (nis.isEmpty) return false;
+  /// Ambil riwayat pengajuan top-up berdasarkan NIS atau via proxy SMPT
+  Future<bool> fetchTopUpHistory(String nis, {int? studentId}) async {
+    if (nis.isEmpty && (studentId == null || studentId <= 0)) return false;
     _isLoadingTopUps = true;
     notifyListeners();
 
     try {
-      final url = ApiEndpoints.bankTopUpByAccount.replaceAll('{nis}', nis);
+      final url = (studentId != null && studentId > 0)
+          ? ApiEndpoints.smpStudentTopUpHistory.replaceAll('{id}', studentId.toString())
+          : ApiEndpoints.bankTopUpByAccount.replaceAll('{nis}', nis);
+
       final response = await _dio.get(url);
 
       if (response.statusCode == 200 && response.data['data'] != null) {
@@ -167,14 +244,18 @@ class FinanceProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Ambil paket pembayaran aktif dari bank-santri
-  Future<bool> fetchAvailablePackages() async {
+  /// Ambil paket pembayaran aktif dari proxy SMPT atau bank-santri
+  Future<bool> fetchAvailablePackages({int? studentId}) async {
     _isLoadingPackages = true;
     notifyListeners();
 
     try {
+      final url = (studentId != null && studentId > 0)
+          ? ApiEndpoints.smpStudentPackages.replaceAll('{id}', studentId.toString())
+          : ApiEndpoints.bankPaymentPackages;
+
       final response = await _dio.get(
-        ApiEndpoints.bankPaymentPackages,
+        url,
         queryParameters: {'is_active': true, 'per_page': 50},
       );
 
@@ -201,10 +282,46 @@ class FinanceProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Ambil item fasilitas add-on aktif dari proxy SMPT
+  Future<bool> fetchAvailableAddons({int? studentId}) async {
+    if (studentId == null || studentId <= 0) return false;
+    _isLoadingAddons = true;
+    notifyListeners();
+
+    try {
+      final url = ApiEndpoints.smpStudentAddons.replaceAll('{id}', studentId.toString());
+      final response = await _dio.get(url);
+
+      if (response.statusCode == 200 && response.data['data'] != null) {
+        final data = response.data['data'];
+        final list = (data is Map && data['data'] is List)
+            ? data['data'] as List
+            : (data is List ? data : []);
+
+        _availableAddons = list
+            .map((item) =>
+                TransactionItemAddon.fromJson(item as Map<String, dynamic>))
+            .where((item) => item.isActive)
+            .toList();
+        _isLoadingAddons = false;
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Error fetchAvailableAddons: $e');
+    }
+
+    _isLoadingAddons = false;
+    notifyListeners();
+    return false;
+  }
+
   /// Kirim pengajuan top-up via transfer bank beserta upload bukti
   Future<({bool success, String message})> submitBankTransferTopUp({
+    required int studentId,
     required String accountNumber,
-    required int paymentPackageId,
+    int? paymentPackageId,
+    List<int>? addonItemIds,
     required double amount,
     required String filePath,
     String? notes,
@@ -215,19 +332,35 @@ class FinanceProvider extends ChangeNotifier {
 
     try {
       final fileName = filePath.split('/').last;
-      final formData = FormData.fromMap({
+      final mapData = <String, dynamic>{
         'account_number': accountNumber,
-        'payment_package_id': paymentPackageId,
         'amount': amount.toInt(),
-        'notes': notes ?? '',
         'payment_proof': await MultipartFile.fromFile(
           filePath,
           filename: fileName,
         ),
-      });
+      };
+
+      if (paymentPackageId != null && paymentPackageId > 0) {
+        mapData['payment_package_id'] = paymentPackageId;
+      }
+
+      if (addonItemIds != null && addonItemIds.isNotEmpty) {
+        mapData['addon_item_ids'] = jsonEncode(addonItemIds);
+      }
+
+      if (notes != null && notes.trim().isNotEmpty) {
+        mapData['notes'] = notes.trim();
+      }
+
+      final formData = FormData.fromMap(mapData);
+
+      final url = (studentId > 0)
+          ? ApiEndpoints.smpStudentSubmitTopUp.replaceAll('{id}', studentId.toString())
+          : ApiEndpoints.bankTopUpBankTransfer;
 
       final response = await _dio.post(
-        ApiEndpoints.bankTopUpBankTransfer,
+        url,
         data: formData,
         options: Options(
           headers: {'Content-Type': 'multipart/form-data'},
@@ -239,7 +372,7 @@ class FinanceProvider extends ChangeNotifier {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         // Refresh riwayat top-up
-        fetchTopUpHistory(accountNumber);
+        fetchTopUpHistory(accountNumber, studentId: studentId);
         return (
           success: true,
           message: response.data['message']?.toString() ??
@@ -261,15 +394,25 @@ class FinanceProvider extends ChangeNotifier {
   }
 
   /// Refresh seluruh data keuangan santri secara bersamaan
-  Future<void> refreshAll(String nis) async {
-    if (nis.isEmpty) return;
-    await Future.wait([
-      fetchAccount(nis),
-      fetchBills(nis),
-      fetchMovements(nis),
-      fetchTopUpHistory(nis),
-      if (_availablePackages.isEmpty) fetchAvailablePackages(),
-    ]);
+  Future<void> refreshAll(String nis, {int? studentId}) async {
+    if (nis.isEmpty && (studentId == null || studentId <= 0)) return;
+
+    if (studentId != null && studentId > 0) {
+      await Future.wait([
+        fetchStudentFinanceProxy(studentId: studentId, nis: nis),
+        fetchTopUpHistory(nis, studentId: studentId),
+        fetchAvailablePackages(studentId: studentId),
+        fetchAvailableAddons(studentId: studentId),
+      ]);
+    } else {
+      await Future.wait([
+        fetchAccount(nis),
+        fetchBills(nis),
+        fetchMovements(nis),
+        fetchTopUpHistory(nis),
+        if (_availablePackages.isEmpty) fetchAvailablePackages(),
+      ]);
+    }
   }
 
   /// Reset state ketika santri berganti atau logout
@@ -278,6 +421,7 @@ class FinanceProvider extends ChangeNotifier {
     _billSummary = null;
     _movements = [];
     _topUpHistory = [];
+    _availableAddons = [];
     _errorMessage = null;
     notifyListeners();
   }

@@ -16,6 +16,15 @@ class ApiEndpoints {
   // Profil & Santri
   static const String smpParentByNik = '$smpBase/api/main/parent/nik/{nik}/cek';
   static const String smpStudentDetail = '$smpBase/api/main/student/{id}';
+  static const String smpStudentFinance = '$smpBase/api/main/student/{id}/finance';
+  static const String smpStudentPackages =
+      '$smpBase/api/main/student/{id}/payment-packages';
+  static const String smpStudentAddons =
+      '$smpBase/api/main/student/{id}/addon-items';
+  static const String smpStudentTopUpHistory =
+      '$smpBase/api/main/student/{id}/top-up-history';
+  static const String smpStudentSubmitTopUp =
+      '$smpBase/api/main/student/{id}/top-up';
   static const String smpUpdateParentPhoto =
       '$smpBase/api/main/parent/{id}/update-photo';
 

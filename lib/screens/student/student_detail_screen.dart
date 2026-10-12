@@ -1,25 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/kesantrian.dart';
 import '../../models/santri.dart';
+import '../../providers/kesantrian_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/student_card_qr.dart';
 
 /// Halaman detail dan daftar santri milik wali
-class StudentDetailScreen extends StatelessWidget {
+class StudentDetailScreen extends StatefulWidget {
   const StudentDetailScreen({super.key});
+
+  @override
+  State<StudentDetailScreen> createState() => _StudentDetailScreenState();
+}
+
+class _StudentDetailScreenState extends State<StudentDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchEducationInfo());
+  }
+
+  void _fetchEducationInfo() {
+    final activeStudent = context.read<StudentProvider>().activeStudent;
+    if (activeStudent != null && activeStudent.id > 0) {
+      context.read<KesantrianProvider>().fetchHostelInfo(activeStudent.id);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final studentProvider = context.watch<StudentProvider>();
+    final kesantrianProvider = context.watch<KesantrianProvider>();
     final students = studentProvider.students;
     final activeStudent = studentProvider.activeStudent;
+    final eduInfo = kesantrianProvider.hostelInfo;
 
     return Scaffold(
       backgroundColor: AppTheme.slate50,
-      appBar: AppBar(
-        title: const Text('Santri Saya'),
-      ),
+      appBar: AppBar(title: const Text('Anak Saya')),
       body: students.isEmpty
           ? Center(
               child: Padding(
@@ -59,7 +79,12 @@ class StudentDetailScreen extends StatelessWidget {
                   // Kartu Profil Santri Aktif
                   if (activeStudent != null) ...[
                     _ActiveStudentHeaderCard(student: activeStudent),
+                    const SizedBox(height: 12),
+
+                    // Strip Info Pendidikan (jenjang, sekolah, asrama, kamar)
+                    _EducationInfoStrip(student: activeStudent, eduInfo: eduInfo),
                     const SizedBox(height: 16),
+
                     StudentCardQrWidget(student: activeStudent),
                     const SizedBox(height: 24),
                   ],
@@ -89,6 +114,10 @@ class StudentDetailScreen extends StatelessWidget {
                         isSelected: isSelected,
                         onTap: () {
                           studentProvider.switchActiveStudent(student);
+                          // Muat ulang info pendidikan santri yang baru dipilih
+                          if (student.id > 0) {
+                            context.read<KesantrianProvider>().fetchHostelInfo(student.id);
+                          }
                         },
                       );
                     },
@@ -174,7 +203,10 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.emerald100,
                   borderRadius: BorderRadius.circular(20),
@@ -350,6 +382,132 @@ class _StudentListItem extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _EducationInfoStrip extends StatelessWidget {
+  final Student student;
+  final HostelRoomInfo? eduInfo;
+
+  const _EducationInfoStrip({required this.student, this.eduInfo});
+
+  @override
+  Widget build(BuildContext context) {
+    final institutionName = eduInfo?.institutionName;
+    final className = eduInfo?.className;
+    final classGroupName = eduInfo?.classGroupName;
+    final academicYear = eduInfo?.academicYear;
+    final programName = student.programName ?? eduInfo?.programName;
+    final hostelName = eduInfo?.hostelName ?? student.hostelName;
+    final roomName = eduInfo?.roomName;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.slate200),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.school_rounded,
+                size: 18,
+                color: AppTheme.emerald600,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  institutionName ?? programName ?? 'Pendidikan Pesantren',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.slate900,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.emerald50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  student.status.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.emerald700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (className != null || classGroupName != null) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Divider(height: 1, color: AppTheme.slate100),
+            ),
+            Row(
+              children: [
+                const Icon(Icons.class_rounded, size: 16, color: AppTheme.emerald600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Kelas: ${className ?? '-'}${classGroupName != null ? ' • Rombel: $classGroupName' : ''}',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.slate600, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (academicYear != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.calendar_month_rounded, size: 16, color: AppTheme.emerald600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Tahun Ajaran: $academicYear',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.slate600, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (hostelName != null && hostelName.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Divider(height: 1, color: AppTheme.slate100),
+            ),
+            Row(
+              children: [
+                const Icon(
+                  Icons.hotel_rounded,
+                  size: 16,
+                  color: AppTheme.teal600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Asrama: $hostelName${roomName != null && roomName != 'Kamar Belum Ditentukan' ? ' • Kamar: $roomName' : ''}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.slate600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

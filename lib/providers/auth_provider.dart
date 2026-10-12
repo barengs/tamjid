@@ -61,7 +61,10 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200 && response.data != null) {
         final data = response.data;
         final token = data['access_token']?.toString() ?? '';
-        final userRaw = data['user'] as Map<String, dynamic>;
+        final userRaw = data['user'];
+        if (userRaw is! Map<String, dynamic>) {
+          throw Exception('Data profil user tidak ditemukan dari server.');
+        }
 
         _currentUser = WaliUser.fromJson(userRaw);
         await SessionStore().saveSession(token: token, userData: userRaw);

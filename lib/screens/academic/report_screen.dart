@@ -34,6 +34,7 @@ class _ReportScreenState extends State<ReportScreen> {
     final student = _targetStudent;
     if (student != null && student.id > 0) {
       context.read<KesantrianProvider>().fetchPresences(student.id);
+      context.read<KesantrianProvider>().fetchHostelInfo(student.id);
     }
   }
 
@@ -41,16 +42,19 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     final kp = context.watch<KesantrianProvider>();
     final presenceList = kp.presenceList;
+    final eduInfo = kp.hostelInfo;
+    final student = _targetStudent;
 
     final filtered = presenceList.where((p) {
       if (_filter == 'all') return true;
+      if (_filter == 'alpa') return p.status == 'alpa' || p.status == 'alpha';
       return p.status == _filter;
     }).toList();
 
     final totalHadir = presenceList.where((p) => p.status == 'hadir').length;
     final totalIzin = presenceList.where((p) => p.status == 'izin').length;
     final totalSakit = presenceList.where((p) => p.status == 'sakit').length;
-    final totalAlpa = presenceList.where((p) => p.status == 'alpa').length;
+    final totalAlpa = presenceList.where((p) => p.status == 'alpa' || p.status == 'alpha').length;
 
     return Scaffold(
       backgroundColor: AppTheme.slate50,
@@ -72,6 +76,10 @@ class _ReportScreenState extends State<ReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Kartu Info Pendidikan Santri (Sekolah, Kelas, Rombel, Asrama)
+              if (student != null)
+                _buildEducationProfileCard(student: student, eduInfo: eduInfo),
+
               // Summary Ringkasan Kehadiran
               _buildAttendanceSummary(
                 hadir: totalHadir,
@@ -133,6 +141,171 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Kartu profil pendidikan santri: sekolah/lembaga, kelas, rombel,
+  /// tahun ajaran, program, dan asrama/kamar.
+  Widget _buildEducationProfileCard({
+    required Student student,
+    HostelRoomInfo? eduInfo,
+  }) {
+    final institutionName = eduInfo?.institutionName;
+    final className = eduInfo?.className;
+    final classGroupName = eduInfo?.classGroupName;
+    final academicYear = eduInfo?.academicYear;
+    final programName = student.programName ?? eduInfo?.programName;
+    final hostelName = eduInfo?.hostelName ?? student.hostelName;
+    final roomName = eduInfo?.roomName;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.emerald600,
+            AppTheme.emerald700,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.emerald600.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Avatar + Nama + NIS
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                child: Text(
+                  student.firstName.isNotEmpty
+                      ? student.firstName[0].toUpperCase()
+                      : 'S',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.fullName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'NIS: ${student.nis}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+          const SizedBox(height: 14),
+
+          // Info Pendidikan: Sekolah, Kelas & Rombel, Tahun Ajaran
+          _buildEducationRow(
+            icon: Icons.school_rounded,
+            label: 'Sekolah / Lembaga',
+            value: institutionName ?? programName ?? 'Pendidikan Pesantren',
+          ),
+          const SizedBox(height: 10),
+          _buildEducationRow(
+            icon: Icons.class_rounded,
+            label: 'Kelas & Rombel',
+            value: (className != null || classGroupName != null)
+                ? 'Kelas ${className ?? '-'} • Rombel ${classGroupName ?? '-'}'
+                : 'Belum ada penempatan kelas',
+          ),
+          const SizedBox(height: 10),
+          _buildEducationRow(
+            icon: Icons.calendar_month_rounded,
+            label: 'Tahun Ajaran',
+            value: academicYear ?? '-',
+          ),
+          const SizedBox(height: 10),
+          _buildEducationRow(
+            icon: Icons.home_work_rounded,
+            label: 'Asrama / Kamar',
+            value: hostelName != null
+                ? '$hostelName${roomName != null && roomName != 'Kamar Belum Ditentukan' ? ' • $roomName' : ''}'
+                : 'Belum ditentukan',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEducationRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -295,30 +468,77 @@ class _ReportScreenState extends State<ReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _formatDate(item.date),
+                  item.studyName?.isNotEmpty == true
+                      ? item.studyName!
+                      : (item.className?.isNotEmpty == true
+                          ? item.className!
+                          : 'Halaqah Pembelajaran'),
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.slate900,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
-                  item.className?.isNotEmpty == true
-                      ? item.className!
-                      : 'Halaqah Pembelajaran',
+                  _formatDate(item.date),
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.slate500,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (item.notes != null && item.notes!.isNotEmpty) ...[
+                if (item.className != null || item.classGroupName != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.class_outlined, size: 12, color: AppTheme.slate400),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '${item.className ?? '-'} • Rombel: ${item.classGroupName ?? '-'}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.slate700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (item.teacherName != null && item.teacherName!.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(
-                    'Catatan: ${item.notes}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.slate400,
+                  Row(
+                    children: [
+                      const Icon(Icons.person_outline_rounded, size: 12, color: AppTheme.slate400),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Ustadz/Guru: ${item.teacherName}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppTheme.slate500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (item.notes != null && item.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate100,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Catatan: ${item.notes}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppTheme.slate600,
+                      ),
                     ),
                   ),
                 ],

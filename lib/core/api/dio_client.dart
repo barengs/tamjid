@@ -36,18 +36,28 @@ class DioClient {
         onError: (DioException error, handler) async {
           // Tangani 401 Unauthorized (token expired)
           if (error.response?.statusCode == 401) {
-            final refreshed = await _tryRefreshToken();
-            if (refreshed) {
-              // Retry request sebelumnya dengan token baru
-              final opts = error.requestOptions;
-              opts.headers['Authorization'] = 'Bearer ${SessionStore().token}';
-              try {
-                final response = await _dio.fetch(opts);
-                return handler.resolve(response);
-              } catch (_) {}
-            } else {
-              // Gagal refresh -> hapus sesi
-              await SessionStore().clearSession();
+            final requestPath = error.requestOptions.path;
+            final isSmpRequest = requestPath.startsWith(ApiEndpoints.smpBase);
+
+            // Jangan hapus session jika 401 berasal dari service lain (misal bank-santri)
+            if (isSmpRequest && !requestPath.contains('/auth/login') && !requestPath.contains('/auth/refresh')) {
+              final refreshed = await _tryRefreshToken();
+              if (refreshed) {
+                // Retry request sebelumnya dengan token baru
+                final opts = error.requestOptions;
+                opts.headers['Authorization'] = 'Bearer ${SessionStore().token}';
+                try {
+                  final response = await _dio.fetch(opts);
+                  return handler.resolve(response);
+                } catch (_) {}
+              } else {
+                // Hanya hapus sesi jika server benar-benar menolak refresh token (bukan timeout/koneksi putus)
+                // Jika koneksi putus saat background, jangan log out user
+                final refreshStatusCode = _lastRefreshStatusCode;
+                if (refreshStatusCode == 401 || refreshStatusCode == 403) {
+                  await SessionStore().clearSession();
+                }
+              }
             }
           }
 
@@ -80,7 +90,10 @@ class DioClient {
     );
   }
 
+  int? _lastRefreshStatusCode;
+
   Future<bool> _tryRefreshToken() async {
+    _lastRefreshStatusCode = null;
     try {
       final token = SessionStore().token;
       if (token == null) return false;
@@ -95,12 +108,15 @@ class DioClient {
         ),
       );
 
+      _lastRefreshStatusCode = res.statusCode;
       if (res.statusCode == 200 && res.data['access_token'] != null) {
         final newToken = res.data['access_token'].toString();
         final currentData = SessionStore().userData ?? {};
         await SessionStore().saveSession(token: newToken, userData: currentData);
         return true;
       }
+    } on DioException catch (e) {
+      _lastRefreshStatusCode = e.response?.statusCode;
     } catch (_) {}
     return false;
   }
