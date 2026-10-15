@@ -4,6 +4,8 @@ import '../core/api/api_endpoints.dart';
 import '../core/api/dio_client.dart';
 import '../models/santri.dart';
 
+import '../models/student_card_setting.dart';
+
 enum StudentStatus { initial, loading, loaded, empty, error }
 
 /// Mengelola daftar santri milik wali dan santri aktif yang sedang dipilih.
@@ -14,11 +16,13 @@ class StudentProvider extends ChangeNotifier {
   StudentStatus _status = StudentStatus.initial;
   List<Student> _students = [];
   Student? _activeStudent;
+  StudentCardSetting? _cardSetting;
   String? _errorMessage;
 
   StudentStatus get status => _status;
   List<Student> get students => _students;
   Student? get activeStudent => _activeStudent;
+  StudentCardSetting? get cardSetting => _cardSetting;
   String? get errorMessage => _errorMessage;
   bool get isLoading => _status == StudentStatus.loading;
   bool get hasStudents => _students.isNotEmpty;
@@ -80,6 +84,8 @@ class StudentProvider extends ChangeNotifier {
           _status = StudentStatus.loaded;
         }
         notifyListeners();
+        // Load setting kartu santri di background
+        fetchCardSetting();
       } else {
         throw Exception(response.data?['message'] ?? 'Gagal memuat data santri.');
       }
@@ -94,7 +100,27 @@ class StudentProvider extends ChangeNotifier {
     }
   }
 
-  /// Pindah santri aktif (untuk Family Switcher)
+  /// Ambil pengaturan template kartu santri dari backend
+  Future<void> fetchCardSetting() async {
+    try {
+      final dio = DioClient().dio;
+      final response = await dio.get(ApiEndpoints.smpStudentCardSetting);
+      if (response.statusCode == 200 && response.data != null) {
+        final rawData = response.data;
+        final dataNode = rawData is Map<String, dynamic> && rawData['data'] is Map<String, dynamic>
+            ? rawData['data'] as Map<String, dynamic>
+            : (rawData is Map<String, dynamic> ? rawData : null);
+        if (dataNode != null) {
+          _cardSetting = StudentCardSetting.fromJson(dataNode);
+          notifyListeners();
+        }
+      }
+    } catch (_) {
+      // Non-critical: defaults will be used by StudentCardSetting
+    }
+  }
+
+  /// Pindah santri aktif (untuk Family Switcher / Stacked Card)
   void switchActiveStudent(Student student) {
     if (_activeStudent?.id == student.id) return;
     _activeStudent = student;
@@ -106,6 +132,7 @@ class StudentProvider extends ChangeNotifier {
     _status = StudentStatus.initial;
     _students = [];
     _activeStudent = null;
+    _cardSetting = null;
     _errorMessage = null;
     notifyListeners();
   }

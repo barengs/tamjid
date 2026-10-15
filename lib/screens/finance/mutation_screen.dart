@@ -74,27 +74,30 @@ class _MutationScreenState extends State<MutationScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Filter Chips
-              Row(
-                children: [
-                  _FilterChip(
-                    label: 'Semua',
-                    selected: _filter == 'all',
-                    onTap: () => setState(() => _filter = 'all'),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Dana Masuk (+)',
-                    selected: _filter == 'credit',
-                    onTap: () => setState(() => _filter = 'credit'),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Dana Keluar (-)',
-                    selected: _filter == 'debit',
-                    onTap: () => setState(() => _filter = 'debit'),
-                  ),
-                ],
+              // Filter Chips (Scrollable horizontal agar tidak overflow di device kecil)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      label: 'Semua',
+                      selected: _filter == 'all',
+                      onTap: () => setState(() => _filter = 'all'),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Dana Masuk (+)',
+                      selected: _filter == 'credit',
+                      onTap: () => setState(() => _filter = 'credit'),
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Dana Keluar (-)',
+                      selected: _filter == 'debit',
+                      onTap: () => setState(() => _filter = 'debit'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -223,31 +226,40 @@ class _MutationScreenState extends State<MutationScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      'Saldo Awal: ${_currencyFormat.format(item.balanceBefore)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppTheme.slate500,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Saldo Awal: ${_currencyFormat.format(item.balanceBefore)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.slate500,
+                        ),
                       ),
-                    ),
-                    const Text(' \u2192 ',
-                        style:
-                            TextStyle(fontSize: 10, color: AppTheme.slate400)),
-                    Text(
-                      'Akhir: ${_currencyFormat.format(item.balanceAfter)}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppTheme.slate700,
-                        fontWeight: FontWeight.w600,
+                      const Text(
+                        ' \u2192 ',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.slate400,
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'Akhir: ${_currencyFormat.format(item.balanceAfter)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.slate700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             '${isCredit ? "+" : "-"} ${_currencyFormat.format(item.amount)}',
             style: TextStyle(

@@ -169,6 +169,130 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Update profil wali: nama, email, dan nomor telepon.
+  Future<String?> updateProfile({
+    required String name,
+    required String email,
+    required String phone,
+  }) async {
+    final user = _currentUser;
+    if (user == null) return 'Sesi tidak valid. Silakan login kembali.';
+
+    try {
+      final profile = user.profile;
+      final dio = DioClient().dio;
+      final userId = user.id;
+
+      // Jika profil wali lengkap, gunakan endpoint update parent
+      if (profile != null &&
+          profile.nik != null &&
+          profile.nik!.isNotEmpty &&
+          profile.kk != null &&
+          profile.kk!.isNotEmpty &&
+          profile.gender != null &&
+          profile.parentAs != null) {
+        final fullName = name.trim();
+        final nameParts = fullName.split(' ');
+        final firstName = nameParts.first;
+        final lastName =
+            nameParts.length > 1 ? nameParts.sublist(1).join(' ') : null;
+
+        final response = await dio.put(
+          ApiEndpoints.smpUpdateParent.replaceFirst('{id}', userId.toString()),
+          data: {
+            'first_name': firstName,
+            'last_name': lastName,
+            'nik': profile.nik,
+            'kk': profile.kk,
+            'gender': profile.gender,
+            'parent_as': profile.parentAs,
+            'card_address': profile.cardAddress,
+            'domicile_address': profile.domicileAddress,
+            'phone': phone.trim(),
+            'email': email.trim(),
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final data = response.data;
+          if (data['data'] is Map<String, dynamic>) {
+            _currentUser = WaliUser.fromJson(data['data']);
+            if (SessionStore().token != null) {
+              await SessionStore().saveSession(
+                token: SessionStore().token!,
+                userData: data['data'],
+              );
+            }
+            notifyListeners();
+          }
+          return null;
+        } else {
+          throw Exception(response.data?['message'] ?? 'Gagal memperbarui profil.');
+        }
+      }
+
+      // Fallback: gunakan endpoint update profil auth (data lengkap tidak tersedia)
+      final response = await dio.put(
+        ApiEndpoints.smpUpdateProfile,
+        data: {
+          'name': name.trim(),
+          'email': email.trim(),
+          'phone': phone.trim(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data['data'] is Map<String, dynamic>) {
+          _currentUser = WaliUser.fromJson(data['data']);
+          if (SessionStore().token != null) {
+            await SessionStore().saveSession(
+              token: SessionStore().token!,
+              userData: data['data'],
+            );
+          }
+          notifyListeners();
+        }
+        return null;
+      } else {
+        throw Exception(response.data?['message'] ?? 'Gagal memperbarui profil.');
+      }
+    } on DioException catch (e) {
+      return _parseDioError(e);
+    } catch (e) {
+      return e.toString().replaceAll('Exception: ', '');
+    }
+  }
+
+  /// Ganti password wali.
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String newPasswordConfirmation,
+  }) async {
+    try {
+      final dio = DioClient().dio;
+      final response = await dio.post(
+        ApiEndpoints.smpChangePassword,
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+          'new_password_confirmation': newPasswordConfirmation,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return null;
+      } else {
+        throw Exception(response.data?['message'] ?? 'Gagal mengganti password.');
+      }
+    } on DioException catch (e) {
+      return _parseDioError(e);
+    } catch (e) {
+      return e.toString().replaceAll('Exception: ', '');
+    }
+  }
+
   /// Logout wali santri
   Future<void> logout() async {
     try {

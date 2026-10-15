@@ -88,10 +88,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    size: 44,
-                    color: Colors.white,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),

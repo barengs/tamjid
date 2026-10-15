@@ -23,6 +23,9 @@ class FinanceProvider extends ChangeNotifier {
   bool _isSubmittingTopUp = false;
 
   AccountBalance? _currentAccount;
+  final Map<String, AccountBalance?> _accountsByNis = {};
+  final Map<int, AccountBalance?> _accountsByStudentId = {};
+
   BillSummary? _billSummary;
   List<AccountMovementItem> _movements = [];
   List<TopUpRequestItem> _topUpHistory = [];
@@ -44,6 +47,23 @@ class FinanceProvider extends ChangeNotifier {
       _isLoadingAccount || _isLoadingBills || _isLoadingMovements;
 
   AccountBalance? get currentAccount => _currentAccount;
+
+  /// Mengambil data saldo untuk santri tertentu (berdasarkan NIS atau ID)
+  /// Menghindari kebocoran data saldo santri lain saat beralih kartu.
+  AccountBalance? getAccountFor({String? nis, int? studentId}) {
+    if (nis != null && nis.isNotEmpty && _accountsByNis.containsKey(nis)) {
+      return _accountsByNis[nis];
+    }
+    if (studentId != null && studentId > 0 && _accountsByStudentId.containsKey(studentId)) {
+      return _accountsByStudentId[studentId];
+    }
+    if (_currentAccount != null) {
+      if (nis != null && nis.isNotEmpty && _currentAccount!.accountNumber == nis) {
+        return _currentAccount;
+      }
+    }
+    return null;
+  }
   BillSummary? get billSummary => _billSummary;
   List<AccountMovementItem> get movements => _movements;
   List<TopUpRequestItem> get topUpHistory => _topUpHistory;
@@ -71,9 +91,16 @@ class FinanceProvider extends ChangeNotifier {
         if (rawData != null) {
           // 1. Akun & Saldo
           if (rawData['account'] is Map<String, dynamic>) {
-            _currentAccount = AccountBalance.fromJson(
+            final acc = AccountBalance.fromJson(
               rawData['account'] as Map<String, dynamic>,
             );
+            _currentAccount = acc;
+            if (nis.isNotEmpty) _accountsByNis[nis] = acc;
+            _accountsByStudentId[studentId] = acc;
+          } else {
+            _currentAccount = null;
+            if (nis.isNotEmpty) _accountsByNis[nis] = null;
+            _accountsByStudentId[studentId] = null;
           }
 
           // 2. Tagihan & Tunggakan
@@ -132,9 +159,11 @@ class FinanceProvider extends ChangeNotifier {
       final response = await _dio.get(url);
 
       if (response.statusCode == 200 && response.data['data'] != null) {
-        _currentAccount = AccountBalance.fromJson(
+        final acc = AccountBalance.fromJson(
           response.data['data'] as Map<String, dynamic>,
         );
+        _currentAccount = acc;
+        _accountsByNis[nis] = acc;
         _isLoadingAccount = false;
         notifyListeners();
         return true;
@@ -397,6 +426,18 @@ class FinanceProvider extends ChangeNotifier {
   Future<void> refreshAll(String nis, {int? studentId}) async {
     if (nis.isEmpty && (studentId == null || studentId <= 0)) return;
 
+    // Segera sinkronkan _currentAccount ke data santri ini (jika sudah ada di cache)
+    // atau reset ke null agar tidak menampilkan saldo santri sebelumnya saat swipe!
+    if (nis.isNotEmpty && _accountsByNis.containsKey(nis)) {
+      _currentAccount = _accountsByNis[nis];
+    } else if (studentId != null && _accountsByStudentId.containsKey(studentId)) {
+      _currentAccount = _accountsByStudentId[studentId];
+    } else {
+      _currentAccount = null;
+    }
+    _isLoadingAccount = true;
+    notifyListeners();
+
     if (studentId != null && studentId > 0) {
       await Future.wait([
         fetchStudentFinanceProxy(studentId: studentId, nis: nis),
@@ -418,6 +459,8 @@ class FinanceProvider extends ChangeNotifier {
   /// Reset state ketika santri berganti atau logout
   void reset() {
     _currentAccount = null;
+    _accountsByNis.clear();
+    _accountsByStudentId.clear();
     _billSummary = null;
     _movements = [];
     _topUpHistory = [];

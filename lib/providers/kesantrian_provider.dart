@@ -227,15 +227,32 @@ class KesantrianProvider extends ChangeNotifier {
   Future<bool> fetchHostelInfo(int studentId) async {
     if (studentId <= 0) return false;
 
+    // Reset jika sebelumnya memuat data santri lain agar tidak menampilkan kelas santri lama
+    if (_hostelInfo != null && _hostelInfo!.studentId != null && _hostelInfo!.studentId != studentId) {
+      _hostelInfo = null;
+      notifyListeners();
+    }
+
     try {
       final url =
           ApiEndpoints.smpStudentDetail.replaceAll('{id}', studentId.toString());
       final response = await _dio.get(url);
 
       if (response.statusCode == 200 && response.data != null) {
-        final data = response.data['data'] as Map<String, dynamic>?;
-        if (data != null) {
-          _hostelInfo = HostelRoomInfo.fromJson(data);
+        final raw = response.data;
+        Map<String, dynamic>? dataNode;
+        if (raw is Map<String, dynamic>) {
+          if (raw['data'] is Map<String, dynamic>) {
+            final inner = raw['data'] as Map<String, dynamic>;
+            dataNode = (inner['data'] is Map<String, dynamic>)
+                ? inner['data'] as Map<String, dynamic>
+                : inner;
+          } else {
+            dataNode = raw;
+          }
+        }
+        if (dataNode != null) {
+          _hostelInfo = HostelRoomInfo.fromJson(dataNode);
           notifyListeners();
           return true;
         }

@@ -7,7 +7,9 @@ import '../../providers/auth_provider.dart';
 import '../../providers/finance_provider.dart';
 import '../../providers/kesantrian_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../widgets/guardian_card_widget.dart';
 import '../registration/history_screen.dart';
+import 'edit_profile_screen.dart';
 
 /// Halaman Profil Wali Santri (Tab ke-4 pada bottom navigation)
 class ProfileScreen extends StatelessWidget {
@@ -18,6 +20,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final studentProvider = context.watch<StudentProvider>();
     final user = authProvider.currentUser;
     final profile = user?.profile;
 
@@ -114,9 +117,40 @@ class ProfileScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Informasi Akun
+                // 1. Kartu Tanda Wali Santri Digital
+                if (profile != null) ...[
+                  GuardianCardWidget(
+                    profile: profile,
+                    students: studentProvider.students,
+                    cardSetting: studentProvider.cardSetting,
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // 2. Informasi Akun
                 _SectionCard(
                   title: 'Informasi Akun',
+                  action: TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const EditProfileScreen(initialTab: 0),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.emerald600,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
                   children: [
                     _InfoRow(
                       icon: Icons.person_outline_rounded,
@@ -137,6 +171,41 @@ class ProfileScreen extends StatelessWidget {
                       icon: Icons.phone_outlined,
                       label: 'No. Telepon',
                       value: profile?.phone ?? '-',
+                      isLast: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // 3. Pengaturan Akun
+                _SectionCard(
+                  title: 'Pengaturan Akun',
+                  children: [
+                    _MenuRow(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Ubah Data Profil',
+                      subtitle: 'Perbarui nama, email, dan no. telepon',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(initialTab: 0),
+                          ),
+                        );
+                      },
+                    ),
+                    _MenuRow(
+                      icon: Icons.lock_outline_rounded,
+                      label: 'Ganti Password',
+                      subtitle: 'Perbarui kata sandi login Anda',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(initialTab: 1),
+                          ),
+                        );
+                      },
                       isLast: true,
                     ),
                   ],
@@ -268,9 +337,14 @@ class ProfileScreen extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   final String title;
+  final Widget? action;
   final List<Widget> children;
 
-  const _SectionCard({required this.title, required this.children});
+  const _SectionCard({
+    required this.title,
+    this.action,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -291,13 +365,19 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.slate900,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.slate900,
+                ),
+              ),
+              ?action,
+            ],
           ),
           const SizedBox(height: 8),
           ...children,

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/kesantrian.dart';
 import '../../models/santri.dart';
+import '../../providers/finance_provider.dart';
 import '../../providers/kesantrian_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../widgets/student_card_qr.dart';
@@ -16,15 +17,19 @@ class StudentDetailScreen extends StatefulWidget {
 }
 
 class _StudentDetailScreenState extends State<StudentDetailScreen> {
+  int? _lastFetchedStudentId;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchEducationInfo());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAndFetchEducationInfo());
   }
 
-  void _fetchEducationInfo() {
+  void _checkAndFetchEducationInfo() {
+    if (!mounted) return;
     final activeStudent = context.read<StudentProvider>().activeStudent;
-    if (activeStudent != null && activeStudent.id > 0) {
+    if (activeStudent != null && activeStudent.id > 0 && activeStudent.id != _lastFetchedStudentId) {
+      _lastFetchedStudentId = activeStudent.id;
       context.read<KesantrianProvider>().fetchHostelInfo(activeStudent.id);
     }
   }
@@ -36,6 +41,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     final students = studentProvider.students;
     final activeStudent = studentProvider.activeStudent;
     final eduInfo = kesantrianProvider.hostelInfo;
+
+    // Sinkronkan info kelas dan asrama otomatis jika santri aktif berubah
+    if (activeStudent != null && activeStudent.id > 0 && activeStudent.id != _lastFetchedStudentId) {
+      _lastFetchedStudentId = activeStudent.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<KesantrianProvider>().fetchHostelInfo(activeStudent.id);
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.slate50,
@@ -76,29 +91,47 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Kartu Profil Santri Aktif
-                  if (activeStudent != null) ...[
-                    _ActiveStudentHeaderCard(student: activeStudent),
-                    const SizedBox(height: 12),
+                  // 1. Kartu Santri (Model Swape Bertumpuk) pada bagian paling atas
+                  StackedStudentCardsWidget(
+                    students: students,
+                    activeStudent: activeStudent,
+                    cardSetting: studentProvider.cardSetting,
+                    onSelect: (student) {
+                      studentProvider.switchActiveStudent(student);
+                      // Muat ulang info pendidikan santri yang baru dipilih
+                      if (student.id > 0) {
+                        context.read<KesantrianProvider>().fetchHostelInfo(student.id);
+                      }
+                      // Sinkronkan saldo rekening saat berganti kartu santri
+                      context.read<FinanceProvider>().refreshAll(
+                            student.nis,
+                            studentId: student.id,
+                          );
+                    },
+                  ),
 
-                    // Strip Info Pendidikan (jenjang, sekolah, asrama, kamar)
-                    _EducationInfoStrip(student: activeStudent, eduInfo: eduInfo),
+                  if (activeStudent != null) ...[
                     const SizedBox(height: 16),
 
-                    StudentCardQrWidget(student: activeStudent),
-                    const SizedBox(height: 24),
-                  ],
+                    // 2. Strip Info Pendidikan (jenjang, sekolah, asrama, kamar)
+                    _EducationInfoStrip(student: activeStudent, eduInfo: eduInfo),
+                    const SizedBox(height: 14),
 
-                  // Tab / List Semua Santri
-                  const Text(
-                    'Daftar Anak / Santri',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.slate900,
+                    // 3. Detail Biodata Santri
+                    _ActiveStudentHeaderCard(student: activeStudent),
+                    const SizedBox(height: 24),
+
+                    // 4. Tab / List Semua Santri
+                    const Text(
+                      'Daftar Anak / Santri',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.slate900,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
 
                   ListView.separated(
                     shrinkWrap: true,
@@ -118,6 +151,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                           if (student.id > 0) {
                             context.read<KesantrianProvider>().fetchHostelInfo(student.id);
                           }
+                          // Sinkronkan saldo rekening saat berganti kartu santri
+                          context.read<FinanceProvider>().refreshAll(
+                                student.nis,
+                                studentId: student.id,
+                              );
                         },
                       );
                     },
@@ -141,7 +179,7 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.slate200),
         boxShadow: [
           BoxShadow(
@@ -157,13 +195,13 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppTheme.emerald600, AppTheme.emerald500],
                   ),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -173,11 +211,11 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 24,
+                    fontSize: 20,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,16 +223,16 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
                     Text(
                       student.fullName,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: AppTheme.slate900,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       'NIS: ${student.nis}',
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.emerald700,
                       ),
@@ -208,7 +246,7 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppTheme.emerald100,
+                  color: AppTheme.emerald50,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -222,9 +260,9 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          const Divider(height: 1, color: AppTheme.slate200),
           const SizedBox(height: 16),
+          const Divider(height: 1, color: AppTheme.slate200),
+          const SizedBox(height: 14),
 
           _DetailRow(
             icon: Icons.auto_stories_rounded,
@@ -256,6 +294,7 @@ class _ActiveStudentHeaderCard extends StatelessWidget {
     );
   }
 }
+
 
 class _DetailRow extends StatelessWidget {
   final IconData icon;
@@ -395,13 +434,18 @@ class _EducationInfoStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final institutionName = eduInfo?.institutionName;
-    final className = eduInfo?.className;
-    final classGroupName = eduInfo?.classGroupName;
-    final academicYear = eduInfo?.academicYear;
-    final programName = student.programName ?? eduInfo?.programName;
-    final hostelName = eduInfo?.hostelName ?? student.hostelName;
-    final roomName = eduInfo?.roomName;
+    // Pastikan eduInfo yang dipakai cocok dengan ID santri aktif saat ini
+    final isMatching = eduInfo == null || eduInfo!.studentId == null || eduInfo!.studentId == student.id;
+    final validEduInfo = isMatching ? eduInfo : null;
+
+    final institutionName = validEduInfo?.institutionName;
+    final className = validEduInfo?.className ??
+        (student.className.isNotEmpty ? student.className : null);
+    final classGroupName = validEduInfo?.classGroupName;
+    final academicYear = validEduInfo?.academicYear;
+    final programName = student.programName ?? validEduInfo?.programName;
+    final hostelName = validEduInfo?.hostelName ?? student.hostelName;
+    final roomName = validEduInfo?.roomName;
 
     return Container(
       width: double.infinity,

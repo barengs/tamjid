@@ -9,10 +9,18 @@ class DioClient {
   DioClient._internal();
 
   late final Dio _dio;
+  bool _initialized = false;
 
-  Dio get dio => _dio;
+  Dio get dio {
+    if (!_initialized) {
+      init();
+    }
+    return _dio;
+  }
 
   void init() {
+    if (_initialized) return;
+    _initialized = true;
     _dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 30),

@@ -7,7 +7,6 @@ import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/finance_provider.dart';
 import '../../providers/student_provider.dart';
-import '../../widgets/family_switcher.dart';
 import '../../widgets/student_card_qr.dart';
 import '../academic/report_screen.dart';
 import '../finance/bills_screen.dart';
@@ -36,6 +35,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _isBalanceVisible = true;
 
   @override
   void initState() {
@@ -192,7 +192,93 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSeamlessHeader(fullName, profile?.nik),
             const SizedBox(height: 16),
 
-            // Family Switcher (Daftar Santri)
+            // 1. Tampilkan Saldo di Bagian Atas Kartu Santri (Hanya Saldo Tanpa Informasi Lainnya)
+            Consumer2<StudentProvider, FinanceProvider>(
+              builder: (context, sp, fp, _) {
+                final student = sp.activeStudent;
+                if (student == null) return const SizedBox.shrink();
+
+                final account = fp.getAccountFor(nis: student.nis, studentId: student.id);
+                final balanceText = account != null
+                    ? 'Rp ${account.balance.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}'
+                    : (fp.isLoadingAccount ? 'Memuat...' : 'Rp 0');
+
+                return Padding(
+                  padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.slate200, width: 0.8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.emerald50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.account_balance_wallet_rounded,
+                                size: 16,
+                                color: AppTheme.emerald700,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Saldo: ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.slate600,
+                              ),
+                            ),
+                            Text(
+                              _isBalanceVisible ? balanceText : 'Rp ••••••••',
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                color: AppTheme.slate900,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _isBalanceVisible = !_isBalanceVisible);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              _isBalanceVisible
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              size: 18,
+                              color: AppTheme.slate400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // 2. Kartu Santri pada Pilihan Santri (Bertumpuk Model Slide Depan Belakang jika Santri > 1)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Consumer<StudentProvider>(
@@ -200,10 +286,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   switch (sp.status) {
                     case StudentStatus.loading:
                       return Container(
-                        padding: const EdgeInsets.symmetric(vertical: 26),
+                        padding: const EdgeInsets.symmetric(vertical: 40),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppTheme.slate200),
                         ),
                         child: const Center(
@@ -225,9 +311,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     case StudentStatus.loaded:
                     case StudentStatus.initial:
-                      return FamilySwitcher(
+                      return StackedStudentCardsWidget(
                         students: sp.students,
                         activeStudent: sp.activeStudent,
+                        cardSetting: sp.cardSetting,
                         onSelect: (student) {
                           sp.switchActiveStudent(student);
                           context.read<FinanceProvider>().refreshAll(
@@ -240,160 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             ),
-
-            // Quick Financial Snapshot Card
-            Consumer2<StudentProvider, FinanceProvider>(
-              builder: (context, sp, fp, _) {
-                final student = sp.activeStudent;
-                if (student == null) return const SizedBox.shrink();
-
-                final account = fp.currentAccount;
-                final balanceText = account != null
-                    ? 'Rp ${account.balance.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}'
-                    : 'Memuat...';
-
-                return Padding(
-                  padding: const EdgeInsets.only(left: 20, right: 20, top: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.slate900, AppTheme.slate800],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.slate900.withValues(alpha: 0.15),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.account_balance_wallet_rounded,
-                                    color: AppTheme.emerald400,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  'Saldo Tabungan Santri',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            InkWell(
-                              onTap: () {
-                                setState(() => _currentIndex = 2);
-                                _syncFinance();
-                              },
-                              child: const Row(
-                                children: [
-                                  Text(
-                                    'Rincian',
-                                    style: TextStyle(
-                                      color: AppTheme.emerald400,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.chevron_right_rounded,
-                                    color: AppTheme.emerald400,
-                                    size: 16,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          balanceText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Text(
-                              'Rekening: ${student.nis}',
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppTheme.emerald600.withValues(
-                                  alpha: 0.25,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                account?.akadType.toUpperCase() ?? 'WADIAH',
-                                style: const TextStyle(
-                                  color: AppTheme.emerald400,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // Kartu Santri Digital dengan QR Code
-            Consumer<StudentProvider>(
-              builder: (context, sp, _) {
-                if (sp.activeStudent != null) {
-                  return Padding(
-                    padding: const EdgeInsets.only(
-                      left: 20,
-                      right: 20,
-                      top: 16,
-                    ),
-                    child: StudentCardQrWidget(student: sp.activeStudent!),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 8),
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
@@ -406,12 +340,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
 
             // Grid Menu
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: GridView.count(
+                padding: EdgeInsets.zero,
                 crossAxisCount: 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -570,15 +505,28 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(7),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.mosque_rounded,
                       color: Colors.white,
-                      size: 20,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),

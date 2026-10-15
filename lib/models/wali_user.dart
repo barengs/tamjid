@@ -13,6 +13,7 @@ class ParentProfile {
   final String? domicileAddress;
   final String? photo;
   final String? parentAs;
+  final String? gender;
 
   ParentProfile({
     required this.id,
@@ -29,6 +30,7 @@ class ParentProfile {
     this.domicileAddress,
     this.photo,
     this.parentAs,
+    this.gender,
   });
 
   String get fullName => '$firstName ${lastName ?? ''}'.trim();
@@ -49,6 +51,7 @@ class ParentProfile {
       domicileAddress: json['domicile_address']?.toString(),
       photo: json['photo']?.toString(),
       parentAs: json['parent_as']?.toString(),
+      gender: json['gender']?.toString(),
     );
   }
 
@@ -67,6 +70,7 @@ class ParentProfile {
     'domicile_address': domicileAddress,
     'photo': photo,
     'parent_as': parentAs,
+    'gender': gender,
   };
 }
 

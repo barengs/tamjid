@@ -9,9 +9,11 @@ class ApiEndpoints {
   static const String smpLogin = '$smpBase/api/auth/login';
   static const String smpRegister = '$smpBase/api/auth/register';
   static const String smpProfile = '$smpBase/api/auth/profile';
+  static const String smpUpdateProfile = '$smpBase/api/auth/profile';
   static const String smpRefresh = '$smpBase/api/auth/refresh';
   static const String smpLogout = '$smpBase/api/auth/logout';
   static const String smpForgotPassword = '$smpBase/api/auth/forgot-password';
+  static const String smpChangePassword = '$smpBase/api/auth/change-password';
 
   // Profil & Santri
   static const String smpParentByNik = '$smpBase/api/main/parent/nik/{nik}/cek';
@@ -25,8 +27,12 @@ class ApiEndpoints {
       '$smpBase/api/main/student/{id}/top-up-history';
   static const String smpStudentSubmitTopUp =
       '$smpBase/api/main/student/{id}/top-up';
+  static const String smpUpdateParent =
+      '$smpBase/api/main/parent/{id}';
   static const String smpUpdateParentPhoto =
       '$smpBase/api/main/parent/{id}/update-photo';
+  static const String smpStudentCardSetting =
+      '$smpBase/api/main/student-card/setting';
 
   // Pendaftaran Santri Baru (PSB)
   static const String smpRegistration = '$smpBase/api/main/registration';

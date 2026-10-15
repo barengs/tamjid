@@ -259,6 +259,7 @@ class StudentPresenceItem {
 }
 
 class HostelRoomInfo {
+  final int? studentId;
   final String hostelName;
   final String roomName;
   final int? roomCapacity;
@@ -269,6 +270,7 @@ class HostelRoomInfo {
   final String? academicYear; // Tahun ajaran aktif
 
   const HostelRoomInfo({
+    this.studentId,
     required this.hostelName,
     required this.roomName,
     this.roomCapacity,
@@ -280,23 +282,36 @@ class HostelRoomInfo {
   });
 
   factory HostelRoomInfo.fromJson(Map<String, dynamic> json) {
-    final currentRoom = json['current_room'] as Map<String, dynamic>?;
-    final currentClass = json['current_class'] as Map<String, dynamic>?;
-    final hostel = json['hostel'] as Map<String, dynamic>?;
+    // Unpack inner 'data' map if present from API response wrapping
+    final root = (json['data'] is Map<String, dynamic>)
+        ? json['data'] as Map<String, dynamic>
+        : json;
+
+    final currentRoom = root['current_room'] as Map<String, dynamic>?;
+    final currentClass = root['current_class'] as Map<String, dynamic>?;
+    final hostel = root['hostel'] as Map<String, dynamic>?;
 
     final hName = currentRoom?['hostel_name']?.toString() ??
         hostel?['name']?.toString() ??
         'Asrama Belum Ditentukan';
     final rName = currentRoom?['room_name']?.toString() ?? 'Kamar Belum Ditentukan';
 
+    int? parseStudentId(dynamic val) {
+      if (val is int) return val;
+      if (val is num) return val.toInt();
+      if (val != null) return int.tryParse(val.toString());
+      return null;
+    }
+
     return HostelRoomInfo(
+      studentId: parseStudentId(root['id']),
       hostelName: hName,
       roomName: rName,
       roomCapacity: currentRoom?['room_capacity'] is num
           ? (currentRoom!['room_capacity'] as num).toInt()
           : null,
       className: currentClass?['class_name']?.toString(),
-      programName: json['program']?['name']?.toString(),
+      programName: root['program']?['name']?.toString(),
       institutionName: currentClass?['institution_name']?.toString(),
       classGroupName: currentClass?['class_group_name']?.toString(),
       academicYear: currentClass?['academic_year']?.toString(),

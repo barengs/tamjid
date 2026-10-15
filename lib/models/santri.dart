@@ -32,6 +32,7 @@ class Student {
   final String? deletedAt;
   final String? createdAt;
   final String? updatedAt;
+  final Map<String, dynamic>? currentClass; // info kelas aktif dari endpoint /parent/nik/{nik}/cek
 
   Student({
     required this.id,
@@ -62,6 +63,7 @@ class Student {
     this.deletedAt,
     this.createdAt,
     this.updatedAt,
+    this.currentClass,
   });
 
   String get fullName => '$firstName ${lastName ?? ''}'.trim();
@@ -92,6 +94,16 @@ class Student {
       default:
         return status;
     }
+  }
+
+  /// Nama kelas aktif yang di-attach oleh endpoint `parent/nik/{nik}/cek`.
+  /// Field `current_class` adalah objek `{ class_name: '...' }` hasil join
+  /// `student_classes` + `classrooms` untuk santri dengan approval_status
+  /// 'disetujui'. Jika null/empty, fallback ke `programName`.
+  String get className {
+    final cName = currentClass?['class_name']?.toString();
+    if (cName != null && cName.isNotEmpty) return cName;
+    return programName ?? '';
   }
 
   factory Student.fromJson(Map<String, dynamic> json) {
@@ -130,6 +142,9 @@ class Student {
       deletedAt: json['deleted_at']?.toString(),
       createdAt: json['created_at']?.toString(),
       updatedAt: json['updated_at']?.toString(),
+      currentClass: json['current_class'] is Map<String, dynamic>
+          ? json['current_class'] as Map<String, dynamic>
+          : null,
     );
   }
 
@@ -162,6 +177,7 @@ class Student {
     'deleted_at': deletedAt,
     'created_at': createdAt,
     'updated_at': updatedAt,
+    if (currentClass != null) 'current_class': currentClass,
   };
 }
 
